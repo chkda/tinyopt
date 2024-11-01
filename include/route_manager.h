@@ -7,7 +7,7 @@ namespace route_opt {
 class RouteManager {
 public:
   explicit RouteManager(bool useGPU = false);
-  void setPoints(const PointVector &points);
+  void setPoints(const PointVector& points);
   Route optimize();
 
 private:

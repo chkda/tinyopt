@@ -4,7 +4,7 @@
 namespace route_opt {
 struct Point {
   double x, y;
-  double distanceTo(const Point &other) const;
+  double distanceTo(const Point& other) const;
 };
 
 struct Route {
