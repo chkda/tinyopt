@@ -2,17 +2,23 @@ CXX = clang++
 NVCC = nvcc
 CUDA_PATH = /usr/local/cuda
 
+# Get OpenCV flags and libraries using pkg-config
+OPENCV_CFLAGS := $(shell pkg-config --cflags opencv4)
+OPENCV_LIBS := $(shell pkg-config --libs opencv4)
+
 # Compiler flags
 CXXFLAGS = -std=c++17 \
            -Wall \
            -Wextra \
            -I./include \
-           -I$(CUDA_PATH)/include
+           -I$(CUDA_PATH)/include \
+           $(OPENCV_CFLAGS)
 
 # CUDA flags
 NVCCFLAGS = -std=c++17 \
             -I./include \
             -I$(CUDA_PATH)/include \
+            $(OPENCV_CFLAGS) \
             -Xcompiler -Wall
 
 # Directories
@@ -26,6 +32,9 @@ CUDA_SOURCES = $(wildcard $(CUDA_SRC)/*.cu)
 CPU_OBJECTS = $(CPU_SOURCES:$(CPU_SRC)/%.cpp=$(BUILD_DIR)/%.o)
 CUDA_OBJECTS = $(CUDA_SOURCES:$(CUDA_SRC)/%.cu=$(BUILD_DIR)/%.o)
 
+# Libraries
+LIBS = -L$(CUDA_PATH)/lib64 -lcudart -lcuda $(OPENCV_LIBS)
+
 # Target executable
 TARGET = tinyopt
 
@@ -38,8 +47,7 @@ directories:
 
 # Link the final executable
 $(TARGET): $(CPU_OBJECTS) $(CUDA_OBJECTS) main.cpp
-	$(CXX) $(CXXFLAGS) main.cpp $(CPU_OBJECTS) $(CUDA_OBJECTS) \
-		-L$(CUDA_PATH)/lib64 -lcudart -lcuda -o $@
+	$(CXX) $(CXXFLAGS) main.cpp $(CPU_OBJECTS) $(CUDA_OBJECTS) $(LIBS) -o $@
 
 # Compile CPU source files
 $(BUILD_DIR)/%.o: $(CPU_SRC)/%.cpp
