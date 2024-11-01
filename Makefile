@@ -23,8 +23,8 @@ NVCCFLAGS = -std=c++17 \
 
 # Directories
 BUILD_DIR = build
-CPU_SRC = src/
-CUDA_SRC = src/
+CPU_SRC = src
+CUDA_SRC = src/cuda
 
 # Source files
 CPU_SOURCES = $(wildcard $(CPU_SRC)/*.cpp)

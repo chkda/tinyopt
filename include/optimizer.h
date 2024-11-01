@@ -2,11 +2,12 @@
 #include "types.h"
 
 namespace route_opt {
+  class RouteOptimizer {
+  public:
+    virtual ~RouteOptimizer() = default;
 
-class RouteOptimizer {
-  virtual ~RouteOptimizer() = default;
-  virtual Route findOptimalRoute(const PointVector& points) = 0;
+    virtual Route findOptimalRoute(const PointVector &points) = 0;
 
-  static RouteOptimizer *createOptimizer(bool useGPU = false);
-};
+    static RouteOptimizer *createOptimizer(bool useGPU = false);
+  };
 }; // namespace route_opt
