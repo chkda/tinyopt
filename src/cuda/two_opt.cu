@@ -5,6 +5,7 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/logical.h>
+#include <cmath>
 
 namespace route_opt {
     namespace cuda {
@@ -15,7 +16,7 @@ namespace route_opt {
             auto route_d = initializeRoute(n);
             thrust::device_vector<bool> improved_d(1);
 
-            const int max_iterations = 100;
+            const int max_iterations = pow(2, n);
             int iteration = 0;
 
             do {
