@@ -30,7 +30,7 @@ CUDA_SRC = src/cuda
 CPU_SOURCES = $(wildcard $(CPU_SRC)/*.cpp)
 CUDA_SOURCES = $(wildcard $(CUDA_SRC)/*.cu)
 CPU_OBJECTS = $(CPU_SOURCES:$(CPU_SRC)/%.cpp=$(BUILD_DIR)/%.o)
-CUDA_OBJECTS = $(CUDA_SOURCES:$(CUDA_SRC)/%.cu=$(BUILD_DIR)/%.o)
+CUDA_OBJECTS = $(CUDA_SOURCES:$(CUDA_SRC)/%.cu=$(BUILD_DIR)/cuda/%.o)  # Changed this line
 
 # Libraries
 LIBS = -L$(CUDA_PATH)/lib64 -lcudart -lcuda $(OPENCV_LIBS)
@@ -43,7 +43,7 @@ all: directories $(TARGET)
 
 # Create build directory
 directories:
-	mkdir -p $(BUILD_DIR)
+	mkdir -p $(BUILD_DIR)/cuda  # Added cuda subdirectory
 
 # Link the final executable
 $(TARGET): $(CPU_OBJECTS) $(CUDA_OBJECTS) main.cpp
@@ -54,7 +54,7 @@ $(BUILD_DIR)/%.o: $(CPU_SRC)/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Compile CUDA source files
-$(BUILD_DIR)/%.o: $(CUDA_SRC)/%.cu
+$(BUILD_DIR)/cuda/%.o: $(CUDA_SRC)/%.cu  # Changed this line
 	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
 # Clean build files
