@@ -1,118 +1,98 @@
-#include "visualizer.h"
+#include "cuda/optimizer.cuh"
 #include "route_generator.h"
+#include "visualizer.h"
 #include <iostream>
-#include <chrono>
-#include <thread>
+#include <iomanip>
 
-using namespace route_opt;
-
-// Standalone callback function
-RouteVisualizer::ProgressCallback createProgressCallback() {
-    return [](const Route &route, double progress) {
-        std::cout << "Optimization progress: " << (progress * 100) << "%, "
-                << "Current route length: " << route.totalDistance << std::endl;
-    };
-}
-
-// Simulates an optimization step for demonstration
-Route simulateOptimizationStep(const PointVector &points, int iteration) {
-    Route route;
-    route.path.reserve(points.size());
-
-    // Simple nearest neighbor algorithm for demonstration
-    std::vector<bool> visited(points.size(), false);
-    route.path.push_back(0); // Start from first point
-    visited[0] = true;
-
-    // Limit iterations for demonstration
-    size_t maxPoints = std::min(points.size(), size_t(iteration + 2));
-
-    for (size_t i = 1; i < maxPoints; ++i) {
-        int current = route.path.back();
-        double minDist = std::numeric_limits<double>::max();
-        int nextPoint = -1;
-
-        for (size_t j = 0; j < points.size(); ++j) {
-            if (!visited[j]) {
-                double dist = points[current].distanceTo(points[j]);
-                if (dist < minDist) {
-                    minDist = dist;
-                    nextPoint = j;
-                }
-            }
-        }
-
-        if (nextPoint != -1) {
-            route.path.push_back(nextPoint);
-            visited[nextPoint] = true;
-        }
+// Helper function to print route details
+void printRouteInfo(const std::string &label, const route_opt::Route &route, const PointVector &points) {
+    std::cout << "\n" << label << ":\n";
+    std::cout << "Total Distance: " << std::fixed << std::setprecision(2) << route.totalDistance << "\n";
+    std::cout << "Route: ";
+    for (size_t i = 0; i < route.path.size(); ++i) {
+        std::cout << route.path[i];
+        if (i < route.path.size() - 1)
+            std::cout << " -> ";
     }
-
-    // Calculate total distance
-    route.totalDistance = 0;
-    for (size_t i = 1; i < route.path.size(); ++i) {
-        route.totalDistance += points[route.path[i - 1]].distanceTo(points[route.path[i]]);
-    }
-
-    return route;
+    std::cout << "\n";
 }
 
 int main() {
     try {
-        // Create route generator and generate random points
-        RouteGenerator generator(42); // Fixed seed for reproducibility
-        GeneratorConfig config;
-        config.numPoints = 20; // Small number of points for demonstration
-        config.minCoord = 0;
-        config.maxCoord = 100;
+        // Generate random points
+        route_opt::GeneratorConfig config;
+        config.numPoints = 20; // Start with 20 points for testing
+        config.minCoord = 0.0;
+        config.maxCoord = 100.0;
+        config.seed = 42; // Fixed seed for reproducibility
 
+        route_opt::RouteGenerator generator(config.seed);
         auto [points, distances] = generator.generateRandomEuclidean(config);
 
+        std::cout << "Generated " << points.size() << " random points\n";
+
+        // Create GPU optimizer
+        route_opt::RouteOptimizer *optimizer =
+                route_opt::cuda::factory::createCUDAOptimizer(
+                        route_opt::cuda::factory::RouteAlgorithm::TwoOpt
+                        );
+
+        if (!optimizer) {
+            throw std::runtime_error("Failed to create optimizer");
+        }
+
         // Configure visualizer
-        VisualizerConfig visConfig;
+        route_opt::VisualizerConfig visConfig;
         visConfig.width = 800;
         visConfig.height = 800;
-        visConfig.fps = 30;
         visConfig.outputPath = "route_optimization.mp4";
+        visConfig.fps = 30;
         visConfig.showGrid = true;
         visConfig.showProgress = true;
 
-        // Create visualizer
-        RouteVisualizer visualizer(visConfig);
-        visualizer.showPreview(true); // Enable real-time preview
-
-        // Set up progress callback using the standalone function
-        RouteVisualizer::ProgressCallback progressCallback = createProgressCallback();
-        visualizer.setProgressCallback(progressCallback);
-
-        // Begin recording
+        route_opt::RouteVisualizer visualizer(visConfig);
+        visualizer.showPreview(false); // Show real-time preview
         visualizer.beginRecording();
 
-        // Simulate optimization process
-        const int numIterations = 30;
-        for (int i = 0; i < numIterations; ++i) {
-            Route currentRoute = simulateOptimizationStep(points, i);
+        // Initial route (before optimization)
+        route_opt::Route initial_route;
+        initial_route.path.resize(points.size());
+        std::iota(initial_route.path.begin(), initial_route.path.end(), 0);
 
-            // Add frame to video
-            visualizer.addFrame(points, currentRoute);
-
-            // Report progress
-            double progress = static_cast<double>(i) / numIterations;
-            visualizer.addIntermediateRoute(currentRoute, progress);
-
-            // Simulate some processing time
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        // Calculate initial distance
+        double initial_distance = 0.0;
+        for (size_t i = 0; i < points.size(); ++i) {
+            size_t j = (i + 1) % points.size();
+            initial_distance += points[initial_route.path[i]].distanceTo(points[initial_route.path[j]]);
         }
+        initial_route.totalDistance = initial_distance;
 
-        // Finalize video
+        // Add initial frame
+        visualizer.addFrame(points, initial_route);
+        printRouteInfo("Initial Route", initial_route, points);
+
+        // Optimize route
+        std::cout << "\nOptimizing route...\n";
+        route_opt::Route optimized_route = optimizer->findOptimalRoute(points);
+
+        // Add final frame
+        visualizer.addFrame(points, optimized_route);
+        printRouteInfo("Optimized Route", optimized_route, points);
+
+        // Calculate improvement
+        double improvement = ((initial_route.totalDistance - optimized_route.totalDistance)
+                              / initial_route.totalDistance) * 100.0;
+        std::cout << "\nImprovement: " << std::fixed << std::setprecision(2)
+                << improvement << "%\n";
+
         visualizer.finalizeVideo();
+        delete optimizer;
 
-        std::cout << "Visualization completed. Output saved to: route_optimization.mp4" << std::endl;
+        std::cout << "\nVisualization saved to: " << visConfig.outputPath << "\n";
+        return 0;
 
     } catch (const std::exception &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
-
-    return 0;
 }
